@@ -39,7 +39,7 @@ def check_file_size(target_file):
         return True
 
 
-def download_sub(videofile, yes_to_all, no_to_all, language):
+def download_sub(videofile, overwrite, language):
     if not check_file_size(videofile):
         print "File is too small"
         return 1
@@ -58,40 +58,47 @@ def download_sub(videofile, yes_to_all, no_to_all, language):
     response = conn.read()
     print "available languages: " + response
 
-    if response.find(language) == -1:
-        print "language is not available"
-        return 3
+    # language as None means to download all languages available
+    if language is None:
+        for available_language in response.split(','):
+            download_sub_for_language(opener, videofile, hash, overwrite, available_language)
 
+    # Download if for desired language
+    else :
+        if response.find(language) == -1:
+            print "language is not available"
+            return 3
+
+        download_sub_for_language(opener, videofile, hash, overwrite, language)
+
+
+def download_sub_for_language(opener, videofile, hash, overwrite, language):
     try:
         conn = opener.open(API_URL + "?action=download&hash=" + hash + "&language=" + language)
     except urllib2.HTTPError as e:
         print repr(e.code) + ": " + e.reason
         return 4
 
-    filename = os.path.splitext(videofile)[0] + "." + language + ".srt"
+    sub_filename = os.path.splitext(videofile)[0] + "." + language + ".srt"
 
-    if os.path.isfile(filename):
-        if yes_to_all:
+    # Check if the file exists
+    if os.path.isfile(sub_filename):
+        if overwrite is True:
             resp = 'y'
-        else:
+        elif overwrite is False:
             resp = 'n'
-        if not yes_to_all and not no_to_all:
+        else:
             sys.stdout.write("Error: subtitle already exists. Overwrite? (y/N): ")
             resp = sys.stdin.readline()
-        if resp[0] != 'y':
-            print "Skipping: File exists."
+
+        if resp[0] is not 'y':
+            print "Skipping %s: File exists." % sub_filename
             return 5
 
-    try:
-        sub_file = open(filename, 'w')
-    except IOError as e:
-        print "error creating file: ", e
-        return 6
+    with open(sub_filename, 'w') as sub_file:
+        sub_file.write(conn.read())
 
-    sub_file.write(conn.read())
-    sub_file.close()
-
-    print filename + " downloaded"
+    print sub_filename + " downloaded"
     return 0
 
 def isVideo(path):
@@ -108,7 +115,13 @@ def download_sub_recursive(path):
         fileext = os.path.splitext(path)[1]
         if options.ignoreMimeType is True or isVideo(path):
             print "Downloading subs for " + os.path.basename(path)
-            download_sub(path, options.yesToAll, options.noToAll, options.language)
+
+            # None language tells the script to download All Languages
+            language = None if options.all_languages else options.language
+
+            overwrite = True if options.yesToAll else False if options.noToAll else None
+
+            download_sub(path, overwrite, language)
         else:
             print "Skipping " + path
 
@@ -143,6 +156,14 @@ parser.add_option("-l",
                   dest="language",
                   default='pt',
                   help="language to download")
+
+parser.add_option("-a",
+                  "--all-languages",
+                  metavar="ALL_LANGUAGES",
+                  dest="all_languages",
+                  default=False,
+                  action="store_true",
+                  help="download all languages")
 
 (options, args) = parser.parse_args()
 
