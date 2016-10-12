@@ -68,7 +68,7 @@ def download_sub(videofile, yes_to_all, no_to_all, language):
         print repr(e.code) + ": " + e.reason
         return 4
 
-    filename = os.path.splitext(videofile)[0] + ".srt"
+    filename = os.path.splitext(videofile)[0] + "." + language + ".srt"
 
     if os.path.isfile(filename):
         if yes_to_all:
