@@ -5,11 +5,11 @@ import os
 import signal
 import sys
 import urllib2
+import mimetypes
 from optparse import OptionParser
 
 USER_AGENT = "SubDB/1.0 (horus/0.1; http://www.github.com/romeupalos/horus)"
 API_URL = "http://api.thesubdb.com/"
-EXTENSIONS = {'.mp4', '.mkv', '.avi'}
 
 
 # this hash function receives the name of the file and returns the hash code
@@ -94,13 +94,19 @@ def download_sub(videofile, yes_to_all, no_to_all, language):
     print filename + " downloaded"
     return 0
 
+def isVideo(path):
+    mime_type = mimetypes.guess_type(path)[0]
+    if mime_type is not None:
+        return mime_type.split('/')[0] == 'video'
+    return False
+
 def download_sub_recursive(path):
     if os.path.isdir(path):
         for f in os.listdir(path):
             download_sub_recursive(os.path.join(path, f))
     else:
         fileext = os.path.splitext(path)[1]
-        if options.ignoreExtension is True or fileext in EXTENSIONS:
+        if options.ignoreMimeType is True or isVideo(path):
             print "Downloading subs for " + os.path.basename(path)
             download_sub(path, options.yesToAll, options.noToAll, options.language)
         else:
@@ -125,11 +131,11 @@ parser.add_option("-n",
                   help="Don't overwrite any file")
 
 parser.add_option("-i",
-                  "--ignore-ext",
+                  "--ignore-mime",
                   action="store_true",
-                  dest="ignoreExtension",
+                  dest="ignoreMimeType",
                   default=False,
-                  help="Ignore known video file extensions")
+                  help="Download subtitles for non video files")
 
 parser.add_option("-l",
                   "--language",
