@@ -79,7 +79,7 @@ def download_sub(videofile, yes_to_all, no_to_all, language):
             sys.stdout.write("Error: subtitle already exists. Overwrite? (y/N): ")
             resp = sys.stdin.readline()
         if resp[0] != 'y':
-            print "Skipping: File exists.\n"
+            print "Skipping: File exists."
             return 5
 
     try:
@@ -91,9 +91,20 @@ def download_sub(videofile, yes_to_all, no_to_all, language):
     sub_file.write(conn.read())
     sub_file.close()
 
-    print filename + " downloaded\n"
+    print filename + " downloaded"
     return 0
 
+def download_sub_recursive(path):
+    if os.path.isdir(path):
+        for f in os.listdir(path):
+            download_sub_recursive(os.path.join(path, f))
+    else:
+        fileext = os.path.splitext(path)[1]
+        if options.ignoreExtension is True or fileext in EXTENSIONS:
+            print "Downloading subs for " + os.path.basename(path)
+            download_sub(path, options.yesToAll, options.noToAll, options.language)
+        else:
+            print "Skipping " + path
 
 # Capture Ctrl + C (SIGINT)
 signal.signal(signal.SIGINT, signal_handler)
@@ -133,15 +144,7 @@ if len(args) < 1:
     print "Missing files."
     exit(1)
 
-subCount = 0
+for path in args:
+    download_sub_recursive(path)
 
-for videofile in args:
-    fileext = os.path.splitext(videofile)[1]
-    if options.ignoreExtension is True or fileext in EXTENSIONS:
-        print "Downloading subs for " + videofile
-        if download_sub(videofile, options.yesToAll, options.noToAll, options.language) == 0:
-            subCount += 1
-    else:
-        print "Skipping " + videofile + " because " + fileext + " is not a video file\n"
-
-print "All done; " + repr(subCount) + " subtitles downloaded"
+print "All done;"
