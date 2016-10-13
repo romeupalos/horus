@@ -6,11 +6,13 @@ import signal
 import sys
 import urllib2
 import mimetypes
+import pysrt
 from optparse import OptionParser
 
 USER_AGENT = "SubDB/1.0 (horus/0.1; http://www.github.com/romeupalos/horus)"
 API_URL = "http://api.thesubdb.com/"
 
+ADS_WORDS = ['opensubtitles', 'legendei.com', 'sfdownload.com']
 
 # this hash function receives the name of the file and returns the hash code
 def get_hash(name):
@@ -38,8 +40,23 @@ def check_file_size(target_file):
     else:
         return True
 
+def remove_ads_and_save(sub_contents, path):
+    sub_contents = sub_contents.decode('iso-8859-15')
+    srt_sub = pysrt.from_string(sub_contents)
 
-def download_sub(videofile, overwrite, language):
+    index = 0
+    while index < len(srt_sub):
+        srt_sub[index].index = index + 1
+
+        sub_item = srt_sub[index]
+        if True in [True for word in ADS_WORDS if word in sub_item.text.lower()]:
+            del srt_sub[index]
+        else:
+            index += 1
+    srt_sub.save(path, encoding='utf-8')
+
+
+def download_sub(videofile, overwrite, language, keep_ads):
     if not check_file_size(videofile):
         print "File is too small"
         return 1
@@ -61,7 +78,7 @@ def download_sub(videofile, overwrite, language):
     # language as None means to download all languages available
     if language is None:
         for available_language in response.split(','):
-            download_sub_for_language(opener, videofile, hash, overwrite, available_language)
+            download_sub_for_language(opener, videofile, hash, overwrite, available_language, keep_ads)
 
     # Download if for desired language
     else :
@@ -69,10 +86,10 @@ def download_sub(videofile, overwrite, language):
             print "language is not available"
             return 3
 
-        download_sub_for_language(opener, videofile, hash, overwrite, language)
+        download_sub_for_language(opener, videofile, hash, overwrite, language, keep_ads)
 
 
-def download_sub_for_language(opener, videofile, hash, overwrite, language):
+def download_sub_for_language(opener, videofile, hash, overwrite, language, keep_ads):
     try:
         conn = opener.open(API_URL + "?action=download&hash=" + hash + "&language=" + language)
     except urllib2.HTTPError as e:
@@ -95,8 +112,11 @@ def download_sub_for_language(opener, videofile, hash, overwrite, language):
             print "Skipping %s: File exists." % sub_filename
             return 5
 
-    with open(sub_filename, 'w') as sub_file:
-        sub_file.write(conn.read())
+    if keep_ads:
+        with open(sub_filename, 'w') as sub_file:
+            sub_file.write(conn.read())
+    else:
+        remove_ads_and_save(conn.read(), sub_filename)
 
     print sub_filename + " downloaded"
     return 0
@@ -121,7 +141,7 @@ def download_sub_recursive(path):
 
             overwrite = True if options.yesToAll else False if options.noToAll else None
 
-            download_sub(path, overwrite, language)
+            download_sub(path, overwrite, language, options.keep_ads)
         else:
             print "Skipping " + path
 
@@ -164,6 +184,14 @@ parser.add_option("-a",
                   default=False,
                   action="store_true",
                   help="download all languages")
+
+parser.add_option("-k",
+                  "--keep-ads",
+                  metavar="KEEP_ADS",
+                  dest="keep_ads",
+                  default=False,
+                  action="store_true",
+                  help="don't remove ads from subtitles")
 
 (options, args) = parser.parse_args()
 
